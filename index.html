@@ -196,7 +196,7 @@ td.best{font-weight:700;color:var(--brown);background:#fff5ec}
       <div class="viz" id="viz"></div>
       <div class="scorebox">
         <div class="sc-pill" id="scPill">
-          <span class="sc-main" id="scMain">0</span><span class="sc-of">/100</span>
+          <span class="sc-main" id="scMain">0%</span><span class="sc-of" id="scOf"></span>
           <span class="sc-band" id="scBand">Assessment in progress</span>
         </div>
       </div>
@@ -251,46 +251,70 @@ td.best{font-weight:700;color:var(--brown);background:#fff5ec}
 
 <script>
 /* ---------- criteria and scoring logic (unchanged) ---------- */
+const NA="N/A";
 const CRITERIA=[
  {n:1,title:"Optimization strategy",short:"Strategy",q:"What optimization approach was applied?",
   desc:"The systematic approach used to explore experimental conditions.",
-  opts:[["Machine learning optimization",10],["Analytical Quality by Design (AQbD)",9],
-        ["Design of Experiments — full factorial, BBD, CCD",8],["Fractional factorial design",7],
-        ["One factor at a time (OFAT)",5],["No optimization",0]]},
+  opts:[["AQbD with systematic risk assessment, DoE, model evaluation and experimental verification",10],
+        ["Explainable AI with appropriate model validation, interpretation and experimental verification",10],
+        ["Conventional DoE (CCD, BBD, factorial designs) with adequate statistical evaluation and verification",10],
+        ["Hybrid AQbD–AI/ML approach with adequate integration and verification",10],
+        ["Fractional factorial or screening design with appropriate justification and evaluation",8],
+        ["OFAT with systematic experimental investigation",6],
+        ["Trial-and-error optimization with limited scientific justification",2],
+        ["No optimization performed",0]]},
  {n:2,title:"Justification of selected parameters",short:"Justification",q:"How were the optimized parameters justified?",
   desc:"Scientific and literature basis for choosing the studied factors.",
-  opts:[["Scientific reasoning supported by literature",10],["Literature support only",6],["No justification given",2]]},
- {n:3,title:"Effect of optimization on analytical performance",short:"Performance",q:"How much did analytical performance improve?",
-  desc:"Measured gain in performance attributable to optimization.",
-  opts:[["Significant improvement",10],["Moderate improvement",8],["Minor improvement",5],["No improvement",0]]},
+  opts:[["Scientific reasoning and literature-based",10],["Partially justified or Literature-based only",6],["No justification",0]]},
+ {n:3,title:"Improvement of Analytical Performance",short:"Performance",q:"How much did optimization improve analytical performance?",
+  desc:"Measured gain in separation, spectral resolution or sensitivity attributable to optimization.",
+  opts:[["Significant improvement in chromatographic performance, with system suitability parameters substantially exceeding applicable USP requirements; successful resolution and quantification of all analyte components in overlapping spectra; or significant enhancement in sensitivity, demonstrated by an LOD reduction ≥50%",10],
+        ["Moderate improvement in chromatographic performance, with system suitability parameters meeting applicable USP requirements; partial resolution and quantification of overlapping analyte spectra; or an LOD reduction ≥30%",8],
+        ["Minor improvement in chromatographic performance, with some system suitability parameters remaining close to or failing to meet applicable USP limits or Minor improvement in spectral resolution, with only partial resolution of overlapping analyte spectra time efficiency or negligible improvement in LOD",6],
+        ["No measurable improvement in chromatographic separation, spectral resolution, or detection capability",0]]},
  {n:4,title:"Accuracy",short:"Accuracy",q:"What accuracy was demonstrated under the selected conditions?",
   desc:"Reported recovery scored against the acceptance range of the selected matrix type.",
+  step:"Select recovery...",
   matrices:[
    {name:"Major component — simple matrices",ex:"pharmaceutical assay, API assay, food major components",
-    opts:[["98–102%",10],["95–98% or 102–105%",6],["Outside 95–105%",2],["Not reported",0]]},
+    opts:[["98–102%",10],["95–98% or 102–105%",6],["Outside 95–105%",2],["No assessment of accuracy",0]]},
    {name:"Trace — simple to moderately complex matrices",ex:"pharmaceutical impurities, residual solvents, elemental impurities, additives",
-    opts:[["90–110%",10],["80–90% or 110–120%",6],["Outside 80–120%",2],["Not reported",0]]},
+    opts:[["90–110%",10],["80–90% or 110–120%",6],["Outside 80–120%",2],["No assessment of accuracy",0]]},
    {name:"Trace — complex matrices",ex:"environmental water, soil, sludge; plasma, serum, urine; pesticides, mycotoxins, veterinary drugs; forensic, clinical toxicology",
-    opts:[["80–110%",10],["70–80% or 110–120%",6],["Outside 70–120%",2],["Not reported",0]]}]},
- {n:5,title:"ANOVA model significance",short:"ANOVA",q:"What was the statistical significance of the model?",
-  desc:"Statistical evidence that the model describes the response.",
-  opts:[["Highly significant model (p <0.001)",10],["Significant model (p = 0.001–0.05)",6],
-        ["Non-significant model (p >0.05)",2],["Not applicable / no ANOVA-based optimization model (e.g., OFAT)",0]]},
- {n:6,title:"Robustness evaluation",short:"Robustness",q:"How was robustness evaluated after optimization?",
+    opts:[["80–110%",10],["70–80% or 110–120%",6],["Outside 70–120%",2],["No assessment of accuracy",0]]}]},
+ {n:5,title:"Statistical Model Adequacy and Predictive Performance",short:"Model",q:"How adequate and predictive was the statistical model?",
+  desc:"Statistical significance and predictive performance of the fitted regression model.",
+  opts:[["Highly significant and adequately predictive model: p < 0.001; adjusted R² ≥ 0.90; predicted R² ≥ 0.80; relative prediction error ≤ 10%",10],
+        ["Significant model with acceptable predictive performance: p = 0.001–0.05; adjusted R² ≥ 0.80; predicted R² ≥ 0.60; relative prediction error >10–20%",6],
+        ["Non-significant or inadequately predictive model: p > 0.05, or adjusted R² < 0.80, or predicted R² < 0.60, or relative prediction error >20%",2],
+        ["Not applicable / no ANOVA-based optimization model (OFAT): No regression model to evaluate — Not applicable (N/A)",NA]]},
+ {n:6,title:"Robustness evaluation after optimization",short:"Robustness",q:"How was robustness evaluated after optimization?",
   desc:"Deliberate variation of parameters around the optimum.",
-  opts:[["Three or more parameters tested",10],["One or two parameters tested",6],["No robustness testing",0]]},
- {n:7,title:"Time efficiency after optimization",short:"Time",q:"Did optimization reduce the analysis time?",
-  desc:"Reduction in run or total analysis time.",
-  opts:[["Clear reduction in analysis time",10],["Slight reduction",6],["No reduction",2]]},
- {n:8,title:"Reproducibility",short:"Reproducibility",q:"What level of reproducibility was demonstrated?",
-  desc:"Precision of the optimized condition on repetition.",
-  opts:[["RSD below 2%",10],["RSD between 2 and 5%",6],["RSD above 5%",2]]},
- {n:9,title:"Cost and accessibility",short:"Accessibility",q:"How accessible were the optimization tools?",
+  opts:[["Excellent robustness: ≥3 parameters investigated; RSD ≤2%",10],["Good robustness: ≥3 parameters investigated; RSD >2–5%",8],
+        ["Acceptable robustness: 2 parameters investigated; RSD >5–10%",6],["Poor robustness: Any number of parameters investigated; RSD >10%",2],
+        ["Not evaluated: No deliberate variation of method conditions reported",0]]},
+ {n:7,title:"Time Efficiency After Optimization",short:"Time",q:"Did optimization reduce the analysis time?",
+  desc:"Reduction in analysis time compared with preliminary studies.",
+  opts:[["Reduction in analysis time by ≥30% compared with preliminary studies",10],["Reduction in analysis time > 15–30% compared with preliminary studies",8],
+        ["Reduction in analysis time > 5–15%",6],["No measurable improvement in time efficiency",0]]},
+ {n:8,title:"Precision (Repeatability and Intermediate Precision)",short:"Precision",q:"What precision was demonstrated under the optimized conditions?",
+  desc:"RSD scored against the acceptance range of the selected matrix type.",
+  step:"Select RSD...",
+  matrices:[
+   {name:"Major component — simple matrices",ex:"pharmaceutical assay, API assay, food major components",
+    opts:[["RSD <2%",10],["RSD 2–5%",6],["RSD >5%",2],["No assessment of precision",0]]},
+   {name:"Trace — simple to moderately complex matrices",ex:"pharmaceutical impurities, residual solvents, elemental impurities, additives",
+    opts:[["RSD ≤5%",10],["RSD 5–10%",6],["RSD >10%",2],["No assessment of precision",0]]},
+   {name:"Trace — complex matrices",ex:"environmental water, soil, sludge; plasma, serum, urine; pesticides, mycotoxins, veterinary drugs; forensic, clinical toxicology",
+    opts:[["RSD ≤15%",10],["RSD 15–20%",6],["RSD >20%",2],["No assessment of precision",0]]}]},
+ {n:9,title:"Cost & Accessibility",short:"Accessibility",q:"How accessible were the optimization tools?",
   desc:"Cost and availability of the software or platform used.",
-  opts:[["Free, open-source, or highly accessible",10],["Licensed but affordable software",6],["Expensive or limited access",2]]},
+  opts:[["Free/open-source software/ high accessible of optimization tools",10],["Licensed but affordable software",6],
+        ["Expensive or limited accessibility",2],["No optimization tools utilized — Not applicable (N/A)",NA]]},
  {n:10,title:"Data visualization capability",short:"Visualization",q:"What level of data visualization was provided?",
   desc:"Graphical representation of the optimization outcome.",
-  opts:[["Advanced — 3D, contour, or desirability plots",10],["Basic — two-dimensional plots only",6],["Poor or no visualization",2]]}
+  opts:[["Advanced visualization (3D plots, contour plots, desirability plots)",10],["Basic visualization (2D plots only)",6],
+        ["Poor or no visualization tools",2],["No optimization tools utilized — Not applicable (N/A)",NA]]}
 ];
 const BANDS=[
  {min:75,label:"Excellent optimization",color:"#7A3F17",ink:"#FFF9F0",edge:"#63320F"},
@@ -307,13 +331,19 @@ const MSHAPE=["circle","square","triangle","diamond","cross"];
 
 /* ---------- state ---------- */
 const blank=i=>({id:"m"+Date.now()+Math.random().toString(36).slice(2,6),
-  name:"Method "+i,tech:"",analyte:"",matrix:"",ref:"",accMatrix:null,answers:new Array(10).fill(null)});
+  name:"Method "+i,tech:"",analyte:"",matrix:"",ref:"",mx:{},answers:new Array(10).fill(null)});
 let methods=[blank(1)];
 let activeId=methods[0].id;
 let openIndex=null;
 
 const active=()=>methods.find(m=>m.id===activeId);
-const totalOf=m=>m.answers.reduce((t,a)=>t+(a?a.score:0),0);
+const isNA=a=>a&&a.score===NA;
+const totalOf=m=>m.answers.reduce((t,a)=>t+(a&&!isNA(a)?a.score:0),0);
+const applicable=m=>m.answers.filter(a=>a&&!isNA(a)).length;
+/* ORQA score (%) = total score / (10 × number of applicable criteria) × 100 */
+const pctOf=m=>{const n=applicable(m);return n?Math.round(totalOf(m)/(10*n)*1000)/10:0;};
+const num=a=>a&&!isNA(a)?a.score:null;
+const shown=a=>a?(isNA(a)?"N/A":a.score):"—";
 const doneCount=m=>m.answers.filter(a=>a!==null).length;
 const isDone=m=>doneCount(m)===10;
 const completed=()=>methods.filter(isDone);
@@ -337,7 +367,7 @@ function renderChips(){
   b.className="chip"+(m.id===activeId?" on":"");
   b.innerHTML='<span class="swatch" style="background:'+MCOL[i]+'"></span>'+
    '<span>'+(m.name||"Method "+(i+1))+'</span>'+
-   (isDone(m)?'<span class="sc">'+totalOf(m)+'</span>':'<span class="sc">'+doneCount(m)+'/10</span>');
+   (isDone(m)?'<span class="sc">'+pctOf(m)+'%</span>':'<span class="sc">'+doneCount(m)+'/10</span>');
   b.onclick=()=>{activeId=m.id;openIndex=null;render();};
   if(methods.length>1){
    const x=document.createElement("button");
@@ -378,10 +408,10 @@ function renderCards(){
   const a=m.answers[i];
   h+='<div class="qrow"><div class="qlabel"><b>'+c.n+' - '+c.title+'</b><span>'+c.q+'</span></div><div class="qanswer">';
   if(c.matrices){
-   const mx=m.accMatrix!=null?c.matrices[m.accMatrix]:null;
+   if(!m.mx)m.mx={};const mx=m.mx[i]!=null?c.matrices[m.mx[i]]:null;
    h+=drop("m"+i,mx?mx.name:"Select matrix type...",!!mx,false,
      c.matrices.map((x,k)=>({t:x.name,sub:x.ex,fn:"pickMx("+i+","+k+")"})));
-   const lab=a&&mx?a.label.slice(mx.name.length+2):"Select recovery...";
+   const lab=a&&mx?a.label.slice(mx.name.length+2):c.step;
    h+=drop("r"+i,lab,!!a,!mx,
      (mx?mx.opts:[]).map(([t,sc],k)=>({t,fn:"pick("+i+","+k+")"})));
   }else{
@@ -411,20 +441,22 @@ function toggleDrop(id){
 document.addEventListener("click",e=>{if(!e.target.closest(".cdrop")&&openMenu){openMenu.classList.remove("open","drop-up");openMenu=null;}});
 function pick(i,k){
  const m=active(),c=CRITERIA[i];
- if(c.matrices){const mx=c.matrices[m.accMatrix],[t,score]=mx.opts[k];m.answers[i]={label:mx.name+": "+t,score};}
+ if(c.matrices){const mx=c.matrices[m.mx[i]],[t,score]=mx.opts[k];m.answers[i]={label:mx.name+": "+t,score};}
  else{const [label,score]=c.opts[k];m.answers[i]={label,score};}
  openMenu=null;render();
 }
 function pickMx(i,k){
- const m=active();if(m.accMatrix!==k){m.accMatrix=k;m.answers[i]=null;}
+ const m=active();if(!m.mx)m.mx={};
+ if(m.mx[i]!==k){m.mx[i]=k;m.answers[i]=null;}
+ if(i===3&&m.mx[7]==null)m.mx[7]=k;   /* precision starts from the accuracy matrix */
  openMenu=null;render();
 }
 
 /* ---------- stacked visualization (no reserved deficit space) ---------- */
 function stackSVG(m,forExport){
  const W=330,BW=150,GAP=3,PAD=10,LX=BW+14;
- const vals=m.answers.map(a=>a?a.score:null);
- let hs=vals.map(v=>v===null?14:Math.max(15,v*3.2));
+ const vals=m.answers.map(num),nas=m.answers.map(isNA);
+ let hs=vals.map((v,i)=>v===null?(nas[i]?18:14):Math.max(15,v*3.2));
  const TOP=forExport?56:PAD;
  const H=TOP+PAD+hs.reduce((a,b)=>a+b,0)+GAP*9;
  let y=TOP,body="";
@@ -434,24 +466,26 @@ function stackSVG(m,forExport){
  }
  CRITERIA.forEach((c,i)=>{
   const v=vals[i],h=hs[i];
-  const fill=v===null?"#FFFFFF":scoreColor(v);
+  const fill=nas[i]?"#EFEAE3":v===null?"#FFFFFF":scoreColor(v);
   body+='<rect class="blk" data-i="'+i+'" x="0.5" y="'+y+'" width="'+(BW-1)+'" height="'+h+'" rx="5" fill="'+fill+'"'+
-        (v===null?' stroke="#DDD6CC" stroke-width="1" stroke-dasharray="3 2"'
+        (nas[i]?' stroke="#CFC6B8" stroke-width="1"':v===null?' stroke="#DDD6CC" stroke-width="1" stroke-dasharray="3 2"'
                  :' stroke="'+scoreEdge(v)+'" stroke-width="1"')+'/>';
+  if(nas[i])
+   body+='<text x="'+(BW/2)+'" y="'+(y+h/2)+'" text-anchor="middle" dominant-baseline="central" font-size="9.5" font-weight="700" font-family="Inter,Arial,sans-serif" fill="#8A7561">N/A</text>';
   if(v!==null)
    body+='<text x="'+(BW/2)+'" y="'+(y+h/2)+'" text-anchor="middle" dominant-baseline="central" font-size="10.5" font-weight="700" font-family="Inter,Arial,sans-serif" fill="'+scoreInk(v)+'">'+v+'</text>';
-  body+='<text x="'+LX+'" y="'+(y+h/2)+'" dominant-baseline="central" font-size="10.5" font-family="Inter,Arial,sans-serif" fill="'+(v===null?"#8A7561":"#3E2A1C")+'">'+c.n+'  '+c.short+'</text>';
+  body+='<text x="'+LX+'" y="'+(y+h/2)+'" dominant-baseline="central" font-size="10.5" font-family="Inter,Arial,sans-serif" fill="'+(v===null&&!nas[i]?"#8A7561":"#3E2A1C")+'">'+c.n+'  '+c.short+'</text>';
   y+=h+GAP;
  });
  let foot="",FH=0;
  if(forExport&&isDone(m)){
-  const t=totalOf(m),bi=bandInfo(t);FH=64;
+  const t=pctOf(m),bi=bandInfo(t);FH=64;
   foot='<rect x="0" y="'+(H+8)+'" width="'+W+'" height="48" rx="12" fill="'+bi.color+'" stroke="'+bi.edge+'" stroke-width="1"/>'+
-   '<text x="'+(W/2)+'" y="'+(H+29)+'" text-anchor="middle" dominant-baseline="central" font-size="21" font-weight="700" font-family="Inter,Arial,sans-serif" fill="'+bi.ink+'">'+t+' / 100</text>'+
+   '<text x="'+(W/2)+'" y="'+(H+29)+'" text-anchor="middle" dominant-baseline="central" font-size="21" font-weight="700" font-family="Inter,Arial,sans-serif" fill="'+bi.ink+'">'+t+'%</text>'+
    '<text x="'+(W/2)+'" y="'+(H+46)+'" text-anchor="middle" dominant-baseline="central" font-size="10.5" font-weight="600" font-family="Inter,Arial,sans-serif" fill="'+bi.ink+'">'+bi.label+'</text>';
  }
  const TH=H+FH;
- return '<svg viewBox="0 0 '+W+' '+TH+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ORQA profile, score '+totalOf(m)+' of 100">'+
+ return '<svg viewBox="0 0 '+W+' '+TH+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ORQA profile, score '+pctOf(m)+'%">'+
         (forExport?'<rect width="'+W+'" height="'+TH+'" fill="#FFFDF9"/>':'')+body+foot+'</svg>';
 }
 
@@ -460,7 +494,7 @@ function bindStack(){
   r.style.cursor="pointer";
   r.addEventListener("mousemove",e=>{
    const i=+r.dataset.i,c=CRITERIA[i],a=active().answers[i];
-   showTip('<b>'+c.title+'</b><br>'+c.desc+'<br>Obtained '+(a?a.score:"—")+' of 10',e.clientX,e.clientY);
+   showTip('<b>'+c.title+'</b><br>'+c.desc+'<br>Obtained '+(isNA(a)?"N/A (excluded)":(a?a.score+" of 10":"—")),e.clientX,e.clientY);
   });
   r.addEventListener("mouseleave",hideTip);
  });
@@ -486,15 +520,15 @@ function radarSVG(list,hidden,forExport){
  list.forEach((m,k)=>{
   if(hidden.has(m.id))return;
   const idx=methods.findIndex(z=>z.id===m.id),col=MCOL[idx];
-  const p=CRITERIA.map((_,i)=>pt(i,m.answers[i]?m.answers[i].score:0).join(",")).join(" ");
+  const p=CRITERIA.map((_,i)=>pt(i,num(m.answers[i])||0).join(",")).join(" ");
   g+='<polygon points="'+p+'" fill="'+col+'" fill-opacity="0.13" stroke="'+col+'" stroke-width="1.8" stroke-linejoin="round"/>';
   CRITERIA.forEach((_,i)=>{
-   const v=m.answers[i]?m.answers[i].score:0,q=pt(i,v);
+   const v=num(m.answers[i])||0,q=pt(i,v);
    g+=marker(MSHAPE[idx],q[0],q[1],col);
   });
  });
- return '<svg viewBox="0 0 '+S+' '+(S+8)+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Radar comparison of method profiles">'+
-        (forExport?'<rect width="'+S+'" height="'+(S+8)+'" fill="#FFFDF9"/>':'')+g+'</svg>';
+ return '<svg viewBox="-34 0 '+(S+68)+' '+(S+8)+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Radar comparison of method profiles">'+
+        (forExport?'<rect x="-34" width="'+(S+68)+'" height="'+(S+8)+'" fill="#FFFDF9"/>':'')+g+'</svg>';
 }
 function marker(shape,x,y,col){
  const s=3.1;
@@ -514,26 +548,26 @@ function renderCompare(){
  box.hidden=false;
  document.getElementById("cmpNote").textContent=list.length+" completed methods";
 
- const sorted=[...list].sort((a,b)=>totalOf(b)-totalOf(a));
+ const sorted=[...list].sort((a,b)=>pctOf(b)-pctOf(a));
  const medals=["\uD83E\uDD47","\uD83E\uDD48","\uD83E\uDD49"];
  const rb=document.getElementById("rankBox");rb.innerHTML="";
  sorted.forEach((m,i)=>{
-  const idx=methods.findIndex(z=>z.id===m.id),t=totalOf(m);
+  const idx=methods.findIndex(z=>z.id===m.id),t=pctOf(m);
   const d=document.createElement("div");d.className="rk";
   d.innerHTML='<span class="pos">'+(medals[i]||(i+1))+'</span>'+
    '<span class="nm"><span>'+m.name+'</span><span class="bar"><i style="width:'+t+'%;background:'+MCOL[idx]+'"></i></span></span>'+
-   '<span class="val" style="color:'+bandInfo(t).color+'">'+t+'</span>';
+   '<span class="val" style="color:'+bandInfo(t).color+'">'+t+'%</span>';
   rb.appendChild(d);
  });
 
  let th='<thead><tr><th>Criterion</th>'+list.map(m=>'<th class="n">'+m.name+'</th>').join("")+'</tr></thead><tbody>';
  CRITERIA.forEach((c,i)=>{
-  const vals=list.map(m=>m.answers[i].score),mx=Math.max(...vals);
+  const vals=list.map(m=>num(m.answers[i])),mx=Math.max(...vals.filter(v=>v!==null));
   th+='<tr><td>'+c.n+'  '+c.short+'</td>'+
-      vals.map(v=>'<td class="n'+(v===mx?" best":"")+'">'+v+'</td>').join("")+'</tr>';
+      vals.map(v=>'<td class="n'+(v!==null&&v===mx?" best":"")+'">'+(v===null?"N/A":v)+'</td>').join("")+'</tr>';
  });
- const tots=list.map(totalOf),mxt=Math.max(...tots);
- th+='<tr><td style="font-weight:700">Total</td>'+tots.map(v=>'<td class="n'+(v===mxt?" best":"")+'" style="font-weight:700">'+v+'</td>').join("")+'</tr></tbody>';
+ const tots=list.map(pctOf),mxt=Math.max(...tots);
+ th+='<tr><td style="font-weight:700">ORQA score</td>'+tots.map(v=>'<td class="n'+(v===mxt?" best":"")+'" style="font-weight:700">'+v+'%</td>').join("")+'</tr></tbody>';
  document.getElementById("cmpTable").innerHTML=th;
 
  const lg=document.getElementById("radarLegend");lg.innerHTML="";
@@ -552,21 +586,21 @@ function renderCompare(){
 }
 
 function interpret(list){
- const out=[],tots=list.map(totalOf);
+ const out=[],tots=list.map(pctOf);
  const top=list[tots.indexOf(Math.max(...tots))];
- out.push("<b>"+top.name+"</b> achieved the highest overall optimization score ("+totalOf(top)+" of 100, "+bandOf(totalOf(top))+").");
- const sd=m=>{const v=m.answers.map(a=>a.score),mu=v.reduce((a,b)=>a+b,0)/10;
-  return Math.sqrt(v.reduce((s,x)=>s+(x-mu)*(x-mu),0)/10);};
+ out.push("<b>"+top.name+"</b> achieved the highest overall optimization score ("+pctOf(top)+"%, "+bandOf(pctOf(top))+").");
+ const sd=m=>{const v=m.answers.map(num).filter(x=>x!==null);if(!v.length)return 0;const mu=v.reduce((a,b)=>a+b,0)/v.length;
+  return Math.sqrt(v.reduce((s,x)=>s+(x-mu)*(x-mu),0)/v.length);};
  const bal=[...list].sort((a,b)=>sd(a)-sd(b))[0];
  out.push("<b>"+bal.name+"</b> showed the most balanced optimization profile across the ten criteria.");
  [[0,"optimization strategy"],[5,"robustness evaluation"],[8,"accessibility of optimization tools"]].forEach(([i,lbl])=>{
-  const vals=list.map(m=>m.answers[i].score),mx=Math.max(...vals);
-  const win=list.filter(m=>m.answers[i].score===mx);
+  const vals=list.map(m=>num(m.answers[i])).filter(v=>v!==null);if(vals.length<2)return;
+  const mx=Math.max(...vals),win=list.filter(m=>num(m.answers[i])===mx);
   if(win.length===1&&mx>Math.min(...vals))
    out.push("<b>"+win[0].name+"</b> performed best in "+lbl+".");
  });
  const low=list[tots.indexOf(Math.min(...tots))];
- const weak=CRITERIA.map((c,i)=>({c,v:low.answers[i].score})).filter(x=>x.v<=2)
+ const weak=CRITERIA.map((c,i)=>({c,v:num(low.answers[i])})).filter(x=>x.v!==null&&x.v<=2)
    .map(x=>x.c.short.toLowerCase());
  if(weak.length) out.push("<b>"+low.name+"</b> requires improvement in "+weak.slice(0,3).join(", ")+".");
  return out;
@@ -575,10 +609,11 @@ function interpret(list){
 /* ---------- render ---------- */
 function render(){
  renderChips();fillMeta();renderCards();
- const m=active(),t=totalOf(m),n=doneCount(m),done=isDone(m);
+ const m=active(),t=pctOf(m),n=doneCount(m),done=isDone(m),na=n-applicable(m);
  document.getElementById("progTxt").textContent=n+" of 10 answered";
  document.getElementById("viz").innerHTML=stackSVG(m,false);bindStack();
- document.getElementById("scMain").textContent=t;
+ document.getElementById("scMain").textContent=t+"%";
+ document.getElementById("scOf").textContent=na?na+" N/A criteri"+(na>1?"a":"on")+" excluded":"";
  const pill=document.getElementById("scPill"),bi=bandInfo(t);
  document.getElementById("scBand").textContent=done?bi.label:"Assessment in progress";
  if(done){pill.style.background=bi.color;pill.style.borderColor=bi.edge;pill.style.color=bi.ink;}
@@ -591,7 +626,7 @@ function render(){
 function dl(blob,fn){const u=URL.createObjectURL(blob),a=document.createElement("a");
  a.href=u;a.download=fn;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 const csvify=rows=>rows.map(r=>r.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(",")).join("\n");
-const safe=s=>(s||"OMAS").replace(/\W+/g,"_");
+const safe=s=>(s||"ORQA").replace(/\W+/g,"_");
 
 function svgToPng(svg,w,h,fn){
  const img=new Image(),k=3;
@@ -605,56 +640,58 @@ function svgToPng(svg,w,h,fn){
 
 document.getElementById("btnXls").onclick=()=>{
  const m=active();
- const rows=[["OMAS assessment"],["Method",m.name],["Technique",m.tech],["Analyte",m.analyte],
+ const rows=[["ORQA assessment"],["Method",m.name],["Technique",m.tech],["Analyte",m.analyte],
   ["Matrix",m.matrix],["Reference",m.ref],[],["No.","Criterion","Selected answer","Score"]];
- CRITERIA.forEach((c,i)=>rows.push([c.n,c.title,m.answers[i].label,m.answers[i].score]));
- rows.push([],["Total OMAS score",totalOf(m)],["Interpretation",bandOf(totalOf(m))]);
- dl(new Blob(["\ufeff"+csvify(rows)],{type:"text/csv;charset=utf-8"}),"OMAS_"+safe(m.name)+".csv");
+ CRITERIA.forEach((c,i)=>rows.push([c.n,c.title,m.answers[i].label,shown(m.answers[i])]));
+ rows.push([],["Total score",totalOf(m)],["Applicable criteria",applicable(m)],["ORQA score (%)",pctOf(m)],["Interpretation",bandOf(pctOf(m))]);
+ dl(new Blob(["\ufeff"+csvify(rows)],{type:"text/csv;charset=utf-8"}),"ORQA_"+safe(m.name)+".csv");
  toast("Exported");
 };
 document.getElementById("btnPng").onclick=()=>{
  const s=stackSVG(active(),true),vb=/viewBox="0 0 (\d+) ([\d.]+)"/.exec(s);
- svgToPng(s,+vb[1],+vb[2],"OMAS_"+safe(active().name)+".png");};
+ svgToPng(s,+vb[1],+vb[2],"ORQA_"+safe(active().name)+".png");};
 
 document.getElementById("btnPdf").onclick=()=>{
- const m=active(),t=totalOf(m);let rows="";
- CRITERIA.forEach((c,i)=>rows+="<tr><td>"+c.n+"</td><td>"+c.title+"</td><td>"+m.answers[i].label+"</td><td>"+m.answers[i].score+"</td></tr>");
+ const m=active(),t=pctOf(m);let rows="";
+ CRITERIA.forEach((c,i)=>rows+="<tr><td>"+c.n+"</td><td>"+c.title+"</td><td>"+m.answers[i].label+"</td><td>"+shown(m.answers[i])+"</td></tr>");
  document.getElementById("report").innerHTML=
-  '<h1 style="font-size:19pt;color:#6B3E26;margin-bottom:1pt">OMAS assessment report</h1>'+
+  '<h1 style="font-size:19pt;color:#6B3E26;margin-bottom:1pt">ORQA assessment report</h1>'+
   '<p style="font-size:9.5pt;color:#8A7561;margin-top:0">Optimization Reporting Quality Assessment</p>'+
   '<table style="margin-bottom:12pt"><tr><th>Method</th><td>'+m.name+'</td></tr><tr><th>Technique</th><td>'+m.tech+'</td></tr>'+
   '<tr><th>Analyte</th><td>'+m.analyte+'</td></tr><tr><th>Matrix</th><td>'+m.matrix+'</td></tr><tr><th>Reference</th><td>'+m.ref+'</td></tr></table>'+
   '<table><thead><tr><th>No.</th><th>Criterion</th><th>Selected answer</th><th>Score</th></tr></thead><tbody>'+rows+
-  '<tr><td></td><td><b>Total OMAS score</b></td><td><b style="color:'+bandInfo(t).color+'">'+bandOf(t)+'</b></td><td><b style="color:'+bandInfo(t).color+'">'+t+'</b></td></tr>'+
+  '<tr><td></td><td>Total score (applicable criteria: '+applicable(m)+')</td><td></td><td>'+totalOf(m)+'</td></tr>'+
+  '<tr><td></td><td><b>ORQA score</b></td><td><b style="color:'+bandInfo(t).color+'">'+bandOf(t)+'</b></td><td><b style="color:'+bandInfo(t).color+'">'+t+'%</b></td></tr>'+
   '</tbody></table>'+
   '<div style="width:62mm;margin-top:12pt">'+stackSVG(m,true)+'</div>'+
-  '<p style="font-size:8.5pt;color:#8A7561;line-height:1.4">Block height corresponds to the score awarded for each criterion (0–10); the total OMAS score is the sum of the ten criterion scores (0–100). Criterion order follows Table S1 and is a display convention only; it does not imply a temporal sequence or hierarchy of importance.</p>';
+  '<p style="font-size:8.5pt;color:#8A7561;line-height:1.4">Block height corresponds to the score awarded for each criterion (0–10). ORQA score (%) = [total score / (10 × number of applicable criteria)] × 100; all criteria carry equal weight, and criteria rated not applicable (N/A) are excluded from the calculation. Criterion order follows Table S1 and is a display convention only; it does not imply a temporal sequence or hierarchy of importance.</p>';
  window.print();
 };
 
 document.getElementById("cmpXls").onclick=()=>{
  const list=completed();
- const rows=[["OMAS method comparison"],[],["Field",...list.map(m=>m.name)],
+ const rows=[["ORQA method comparison"],[],["Field",...list.map(m=>m.name)],
   ["Technique",...list.map(m=>m.tech)],["Analyte",...list.map(m=>m.analyte)],
   ["Matrix",...list.map(m=>m.matrix)],["Reference",...list.map(m=>m.ref)],[],
   ["No.","Criterion",...list.map(m=>m.name)]];
- CRITERIA.forEach((c,i)=>rows.push([c.n,c.title,...list.map(m=>m.answers[i].score)]));
- rows.push([],["","Total OMAS score",...list.map(totalOf)],
-  ["","Interpretation",...list.map(m=>bandOf(totalOf(m)))]);
- dl(new Blob(["\ufeff"+csvify(rows)],{type:"text/csv;charset=utf-8"}),"OMAS_comparison.csv");
+ CRITERIA.forEach((c,i)=>rows.push([c.n,c.title,...list.map(m=>shown(m.answers[i]))]));
+ rows.push([],["","Total score",...list.map(totalOf)],["","Applicable criteria",...list.map(applicable)],
+  ["","ORQA score (%)",...list.map(pctOf)],
+  ["","Interpretation",...list.map(m=>bandOf(pctOf(m)))]);
+ dl(new Blob(["\ufeff"+csvify(rows)],{type:"text/csv;charset=utf-8"}),"ORQA_comparison.csv");
  toast("Comparison exported");
 };
-document.getElementById("cmpPng").onclick=()=>svgToPng(radarSVG(completed(),hiddenM,true),320,328,"OMAS_comparison_radar.png");
+document.getElementById("cmpPng").onclick=()=>svgToPng(radarSVG(completed(),hiddenM,true),388,328,"ORQA_comparison_radar.png");
 document.getElementById("cmpPdf").onclick=()=>{
  const list=completed();
  let head='<tr><th>No.</th><th>Criterion</th>'+list.map(m=>'<th>'+m.name+'</th>').join("")+'</tr>',rows="";
- CRITERIA.forEach((c,i)=>{const vals=list.map(m=>m.answers[i].score),mx=Math.max(...vals);
+ CRITERIA.forEach((c,i)=>{const vals=list.map(m=>num(m.answers[i])),mx=Math.max(...vals.filter(v=>v!==null));
   rows+='<tr><td>'+c.n+'</td><td>'+c.title+'</td>'+
-   vals.map(v=>'<td'+(v===mx?' style="font-weight:700"':'')+'>'+v+'</td>').join("")+'</tr>';});
- rows+='<tr><td></td><td><b>Total</b></td>'+list.map(m=>'<td><b style="color:'+bandInfo(totalOf(m)).color+'">'+totalOf(m)+'</b></td>').join("")+'</tr>';
- rows+='<tr><td></td><td>Interpretation</td>'+list.map(m=>'<td>'+bandOf(totalOf(m))+'</td>').join("")+'</tr>';
+   vals.map(v=>'<td'+(v!==null&&v===mx?' style="font-weight:700"':'')+'>'+(v===null?"N/A":v)+'</td>').join("")+'</tr>';});
+ rows+='<tr><td></td><td><b>ORQA score</b></td>'+list.map(m=>'<td><b style="color:'+bandInfo(pctOf(m)).color+'">'+pctOf(m)+'%</b></td>').join("")+'</tr>';
+ rows+='<tr><td></td><td>Interpretation</td>'+list.map(m=>'<td>'+bandOf(pctOf(m))+'</td>').join("")+'</tr>';
  document.getElementById("report").innerHTML=
-  '<h1 style="font-size:19pt;color:#6B3E26;margin-bottom:1pt">OMAS method comparison</h1>'+
+  '<h1 style="font-size:19pt;color:#6B3E26;margin-bottom:1pt">ORQA method comparison</h1>'+
   '<p style="font-size:9.5pt;color:#8A7561;margin-top:0">Optimization Reporting Quality Assessment</p>'+
   '<table><thead>'+head+'</thead><tbody>'+rows+'</tbody></table>'+
   '<div style="width:80mm;margin-top:12pt">'+radarSVG(list,new Set(),true)+'</div>'+
@@ -663,13 +700,13 @@ document.getElementById("cmpPdf").onclick=()=>{
 };
 
 document.getElementById("btnReset").onclick=()=>{
- active().answers=new Array(10).fill(null);active().accMatrix=null;openIndex=null;render();toast("Method reset");};
+ active().answers=new Array(10).fill(null);active().mx={};openIndex=null;render();toast("Method reset");};
 
 document.getElementById("btnSave").onclick=async()=>{
- try{await window.storage.set("omas:methods",JSON.stringify(methods));toast("Assessment saved");}
+ try{await window.storage.set("orqa:methods:v2",JSON.stringify(methods));toast("Assessment saved");}
  catch(e){toast("Saved for this session only");}
 };
-(async()=>{try{const r=await window.storage.get("omas:methods");
+(async()=>{try{const r=await window.storage.get("orqa:methods:v2");
  if(r&&r.value){const p=JSON.parse(r.value);if(Array.isArray(p)&&p.length){methods=p;activeId=methods[0].id;}}}
  catch(e){} render();})();
 </script>
